@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "freecad": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "--add-host",
+        "host.docker.internal:host-gateway",
+        "-e",
+        "FREECAD_MCP_HOST=host.docker.internal",
+        "-e",
+        "FREECAD_MCP_PORT=23456",
+        "freecad-mcp"
+      ],
+      "tools": ["*"]
+    }
+  }
+}

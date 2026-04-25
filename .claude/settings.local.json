@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where python3.exe)",
+      "Bash(where py.exe)",
+      "Read(//c/Users/OscarLopez/AppData/Local/Programs/**)",
+      "Bash(ls /c/Python*)",
+      "Bash(powershell -Command \"Get-Command python* | Select-Object -ExpandProperty Source\")",
+      "Bash(powershell:*)"
+    ]
+  }
+}

@@ -192,15 +192,20 @@ class FreeCADSocketServer:
     """Socket server that runs inside FreeCAD to receive MCP commands"""
     
     def __init__(self):
+        try:
+            configured_port = int(os.getenv("FREECAD_MCP_PORT", "23456"))
+        except ValueError:
+            configured_port = 23456
+
         # Set socket path based on platform
         if IS_WINDOWS:
-            self.socket_path = "localhost:23456"
-            self.host = 'localhost'
-            self.port = 23456
+            self.host = os.getenv("FREECAD_MCP_BIND_HOST", "localhost")
+            self.port = configured_port
+            self.socket_path = f"{self.host}:{self.port}"
         else:
-            self.socket_path = "/tmp/freecad_mcp.sock"
-            self.host = None
-            self.port = None
+            self.socket_path = os.getenv("FREECAD_MCP_SOCKET_PATH", "/tmp/freecad_mcp.sock")
+            self.host = 'localhost'
+            self.port = configured_port
         
         self.server_socket = None
         self.is_running = False
@@ -238,9 +243,9 @@ class FreeCADSocketServer:
                     # Fallback to TCP if AF_UNIX not available
                     self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                    self.server_socket.bind(('localhost', 23456))
+                    self.server_socket.bind((self.host, self.port))
                     self.server_socket.listen(5)
-                    FreeCAD.Console.PrintMessage("Socket server started on localhost:23456 (TCP fallback)\n")
+                    FreeCAD.Console.PrintMessage(f"Socket server started on {self.host}:{self.port} (TCP fallback)\n")
                 else:
                     # Use Unix socket
                     self.server_socket = socket.socket(socket_family, socket.SOCK_STREAM)

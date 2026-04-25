@@ -28,23 +28,54 @@ async def main():
 
     # Create server with freecad naming
     server = Server("freecad")
-    
-    # Check if FreeCAD is available (cross-platform)
-    if platform.system() == "Windows":
-        socket_path = "localhost:23456"
-        freecad_available = True  # We'll check connection when needed
-    else:
-        socket_path = "/tmp/freecad_mcp.sock"
-        freecad_available = os.path.exists(socket_path)
+
+    def get_tcp_host() -> str:
+        return os.getenv("FREECAD_MCP_HOST", "localhost")
+
+    def get_tcp_port() -> int:
+        try:
+            return int(os.getenv("FREECAD_MCP_PORT", "23456"))
+        except ValueError:
+            return 23456
+
+    def get_socket_path() -> str:
+        return os.getenv("FREECAD_MCP_SOCKET_PATH", "/tmp/freecad_mcp.sock")
+
+    def use_tcp_transport() -> bool:
+        return (
+            platform.system() == "Windows"
+            or "FREECAD_MCP_HOST" in os.environ
+            or "FREECAD_MCP_PORT" in os.environ
+        )
+
+    def get_connection_target() -> str:
+        if use_tcp_transport():
+            return f"{get_tcp_host()}:{get_tcp_port()}"
+        return get_socket_path()
+
+    def is_freecad_available() -> bool:
+        if use_tcp_transport():
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.settimeout(0.5)
+            try:
+                test_socket.connect((get_tcp_host(), get_tcp_port()))
+                return True
+            except OSError:
+                return False
+            finally:
+                test_socket.close()
+
+        return os.path.exists(get_socket_path())
     
     async def send_to_freecad(tool_name: str, args: dict) -> str:
         """Send command to FreeCAD via socket (cross-platform)"""
         try:
-            # Create socket connection based on platform
-            if platform.system() == "Windows":
+            # Create socket connection based on configured transport
+            if use_tcp_transport():
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.connect(('localhost', 23456))
+                sock.connect((get_tcp_host(), get_tcp_port()))
             else:
+                socket_path = get_socket_path()
                 if not os.path.exists(socket_path):
                     return json.dumps({"error": "FreeCAD socket not available. Please start FreeCAD and switch to AI Copilot workbench"})
                 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -101,6 +132,7 @@ async def main():
     @server.list_tools()
     async def handle_list_tools() -> list[types.Tool]:
         """List available Phase 1 smart dispatcher tools"""
+        freecad_available = is_freecad_available()
         base_tools = [
             types.Tool(
                 name="check_freecad_connection",
@@ -308,9 +340,10 @@ async def main():
         """Handle tool calls with smart dispatcher routing"""
         
         if name == "check_freecad_connection":
+            freecad_available = is_freecad_available()
             status = {
                 "freecad_socket_exists": freecad_available,
-                "socket_path": socket_path,
+                "socket_path": get_connection_target(),
                 "status": "FreeCAD running with AI Copilot workbench" if freecad_available 
                          else "FreeCAD not running. Please start FreeCAD and switch to AI Copilot workbench"
             }

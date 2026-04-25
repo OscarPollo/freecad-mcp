@@ -2,7 +2,11 @@
 
 import FreeCAD
 import FreeCADGui
-from PySide2 import QtCore, QtGui, QtWidgets
+try:
+    from PySide2 import QtCore, QtGui, QtWidgets
+except ImportError:
+    from PySide import QtCore, QtGui
+    QtWidgets = QtGui
 
 class AI_Connect:
     """Command to connect to Claude"""

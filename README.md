@@ -144,11 +144,114 @@ cp -r AICopilot ~/Library/Application\ Support/FreeCAD/Mod/
 # cp -r AICopilot ~/.local/share/FreeCAD/Mod/
 
 # Windows:
-# cp -r AICopilot %APPDATA%\FreeCAD\Mod\
+# cp -r AICopilot %APPDATA%\FreeCAD\v1-1\Mod\
 
 # Register MCP server with full path
 claude mcp add freecad python3 "$(pwd)/working_bridge.py"
 ```
+
+For FreeCAD 1.1 on Windows, the active user module directory is typically `%APPDATA%\FreeCAD\v1-1\Mod\`, not `%APPDATA%\FreeCAD\Mod\`. You can confirm the exact path with `freecadcmd --dump-config` and check the `UserAppData` value.
+
+### 🐳 Run the MCP Bridge in Docker
+
+You can containerize the MCP bridge, but **FreeCAD itself must still run on the host**. The AI Copilot workbench and socket server live inside the FreeCAD process.
+
+**1. Build the image**
+
+```bash
+docker build -t freecad-mcp .
+```
+
+**2. Start FreeCAD on the host**
+
+Launch FreeCAD and switch to the **AI Copilot** workbench so the socket server starts.
+
+**3. Run the bridge container**
+
+**Windows / Docker Desktop:**
+```bash
+docker run --rm -i \
+  -e FREECAD_MCP_HOST=host.docker.internal \
+  -e FREECAD_MCP_PORT=23456 \
+  freecad-mcp
+```
+
+**Linux Docker Engine:**
+```bash
+docker run --rm -i \
+  --add-host=host.docker.internal:host-gateway \
+  -e FREECAD_MCP_HOST=host.docker.internal \
+  -e FREECAD_MCP_PORT=23456 \
+  freecad-mcp
+```
+
+**4. Point your MCP client at Docker**
+
+Example Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "freecad": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "FREECAD_MCP_HOST=host.docker.internal",
+        "-e",
+        "FREECAD_MCP_PORT=23456",
+        "freecad-mcp"
+      ]
+    }
+  }
+}
+```
+
+**If the container cannot reach FreeCAD on Windows**
+
+Some Docker setups cannot reach services bound only to `localhost`. In that case, start FreeCAD from PowerShell with an explicit bind host:
+
+```powershell
+$env:FREECAD_MCP_BIND_HOST = "0.0.0.0"
+$env:FREECAD_MCP_PORT = "23456"
+& "C:\Program Files\FreeCAD 1.0\bin\FreeCAD.exe"
+```
+
+This exposes the MCP socket on your machine network stack, so use it only on a trusted local machine.
+
+### 🤖 Use with GitHub Copilot CLI
+
+This repository now includes a project-level [`.mcp.json`](.mcp.json) file for GitHub Copilot CLI. If you run `copilot` from the repository root, Copilot CLI will automatically discover the `freecad` MCP server and start the Docker bridge for you.
+
+**Requirements:**
+- FreeCAD must already be running on the host with the **AI Copilot** workbench active.
+- The Docker image must already exist locally: `docker build -t freecad-mcp .`
+- On Windows, GitHub Copilot CLI currently expects `pwsh.exe` (PowerShell 7+) for shell-backed agent actions.
+
+**Verify the MCP configuration:**
+
+```powershell
+copilot mcp list
+copilot mcp get freecad
+```
+
+**Start Copilot CLI in this repo:**
+
+```powershell
+copilot
+```
+
+**Example prompts:**
+
+```text
+Use the freecad MCP server to check the FreeCAD connection.
+List the tools exposed by the freecad MCP server.
+Create a 50x30x20mm box in FreeCAD.
+```
+
+If `copilot` reports that `pwsh.exe` is missing, install PowerShell 7 and restart the terminal. The MCP configuration itself will still be discovered, but some local tool execution paths in Copilot CLI will fail until `pwsh` is available.
 
 ## 🚀 What You Can Do
 
